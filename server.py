@@ -1,10 +1,12 @@
 import os
-import time
 import logging
+import re
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_validator
-import requests
+import httpx
+import json
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("bypassai")
@@ -17,7 +19,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=FRONTEND_ORIGINS,
     allow_credentials=False,
-    allow_methods=["POST", "OPTIONS"],
+    allow_methods=["POST", "OPTIONS", "GET"],
     allow_headers=["Content-Type"],
 )
 
@@ -25,62 +27,65 @@ SILICONFLOW_API_KEY = os.getenv("SILICONFLOW_API_KEY", "")
 SILICONFLOW_URL = "https://api.siliconflow.cn/v1/chat/completions"
 MODEL_NAME = os.getenv("MODEL_NAME", "deepseek-ai/DeepSeek-V3")
 MAX_INPUT_CHARS = int(os.getenv("MAX_INPUT_CHARS", "10000"))
-MAX_RETRIES = int(os.getenv("MAX_RETRIES", "2"))
 
-DEFAULT_SYSTEM_PROMPT = """You are an expert human writer who specializes in rewriting AI-generated text to sound natural, organic, and indistinguishable from human-written content.
+DEFAULT_SYSTEM_PROMPT = """你是一位精通中英文学术与创意写作的人类专家，擅长将富有AI感、机翻感的死板文本改写为自然、地道、极具人类呼吸感的文章。
 
-CORE REQUIREMENTS (STRICTLY FOLLOW THESE RULES):
-1. MEANING PRESERVATION: Keep the original meaning, facts, and core information completely unchanged. Do not add new information or remove key facts.
+核心原则（必须严格遵守）：
+1. 含义保留：绝不添加、脑补任何原文中不存在的事实或例子，也绝不删减任何核心论点。
+2. 句长变异性 (Burstiness 控制)：
+   - AI 写作的致命弱点是句式整齐、长度均匀。你必须刻意交错使用“极短句（10字以内）”、“中句（20字左右）”和“复杂长句（30字以上）”。
+   - 模仿人类思考的跌宕起伏，让文本富有节奏感与呼吸感。
+3. 杜绝AI高频词：严禁使用“总而言之”、“不可否认”、“值得注意的是”、“显而易见”、“此外”等机械的过渡词。改用人类更常用的隐性逻辑连接。
+4. 文体契合：保持原有的语言风格（学术论文继续保持严谨学术风，商业文案保持营销风），但彻底打碎机械的句式。
+5. 零AI检测：改写后的文本必须能够完美通过 Turnitin, GPTZero, CopyLeaks 等主流AI检测器。
 
-2. LENGTH CONTROL: The output word count must stay within ±20% of the original text. NEVER expand short sentences into long paragraphs. NEVER pad content. If the input is a single sentence, output a single sentence of similar length.
-
-3. STRUCTURE INTEGRITY: Maintain the original text structure and paragraph layout. If the input has N sentences, output should have roughly N sentences (±1). Do not turn a single sentence into a whole paragraph.
-
-4. HUMANNESS ENHANCEMENT:
-   - Vary sentence lengths naturally (mix short and long sentences)
-   - Use idioms, colloquial expressions, and conversational tone where appropriate
-   - Introduce natural perplexity and burstiness
-   - Avoid repetitive sentence patterns (avoid: "Furthermore", "In conclusion", "However", etc.)
-   - Add minor "imperfections" that real humans make (contractions, slightly varied wording)
-
-5. STYLE FIDELITY: Preserve the original writing style (academic stays academic, casual stays casual, technical stays technical).
-
-6. ZERO AI DETECTION: The output must easily bypass all AI detectors including GPTZero, Turnitin, Originality.ai, and others.
-
-Directly output the rewritten text only, no explanations, no comments, no markdown formatting."""
+直接输出改写后的文本，严禁包含任何前言、后记、解释、反思、括号注释或 Markdown 代码块标识。"""
 
 SHORT_TEXT_PROMPT_SUFFIX = """
 
-CRITICAL OVERRIDE FOR SHORT TEXT: The input is very short (under 30 words). You MUST output approximately the same number of words (within ±30%). Do NOT add context, examples, or elaboration. Rewrite the single sentence as a single sentence. No padding."""
+⚠️【极端硬性约束 - 短文本防膨胀】：
+当前输入的文本极其简短（属于短句/短语）。你必须克制扩写的欲望！
+- 如果输入是一个短句，改写后必须有且仅有一个短句。
+- 字数/词数变动必须控制在原文本的 ±15% 以内，严禁扩写、严禁添加任何前置修饰语、背景解释或衍生例子。
+- 严禁为了降低AI感而恶意把短句拉长为长难句！"""
 
 SYSTEM_PROMPT = os.getenv("SYSTEM_PROMPT", DEFAULT_SYSTEM_PROMPT)
 
 class TextRequest(BaseModel):
     text: str
+    stream: bool = True
 
     @field_validator("text")
     @classmethod
     def validate_text(cls, v):
         v = v.strip()
         if not v:
-            raise ValueError("Input text cannot be empty")
+            raise ValueError("输入文本不能为空")
         if len(v) > MAX_INPUT_CHARS:
-            raise ValueError(f"Input exceeds maximum length of {MAX_INPUT_CHARS} characters")
+            raise ValueError(f"输入文本超过最大长度限制：{MAX_INPUT_CHARS} 字")
         return v
 
-
-def count_words(text: str) -> int:
+def count_length(text: str) -> int:
+    clean_text = "".join(text.split())
+    zh_chars = len(re.findall(r'[\u4e00-\u9fa5]', clean_text))
+    if zh_chars > len(clean_text) * 0.3:
+        return len(clean_text)
     return len(text.split())
 
-
 def is_short_text(text: str) -> bool:
-    return count_words(text) < 30
+    clean_text = "".join(text.split())
+    zh_chars = len(re.findall(r'[\u4e00-\u9fa5]', clean_text))
+    if zh_chars > len(clean_text) * 0.3:
+        return len(clean_text) < 40
+    return len(text.split()) < 20
 
-
-def call_llm(text: str, use_short_prompt: bool) -> str:
+async def llm_stream_generator(text: str, use_short_prompt: bool):
     prompt = SYSTEM_PROMPT
     if use_short_prompt:
         prompt = SYSTEM_PROMPT + SHORT_TEXT_PROMPT_SUFFIX
+
+    base_len = count_length(text)
+    max_tokens = min(max(base_len * 3, 150), 4096)
 
     payload = {
         "model": MODEL_NAME,
@@ -88,10 +93,10 @@ def call_llm(text: str, use_short_prompt: bool) -> str:
             {"role": "system", "content": prompt},
             {"role": "user", "content": text}
         ],
-        "stream": False,
-        "temperature": 0.85,
-        "top_p": 0.9,
-        "max_tokens": min(count_words(text) * 3, 2048)
+        "stream": True,
+        "temperature": 0.8,
+        "top_p": 0.85,
+        "max_tokens": max_tokens
     }
 
     headers = {
@@ -99,85 +104,70 @@ def call_llm(text: str, use_short_prompt: bool) -> str:
         "Content-Type": "application/json"
     }
 
-    response = requests.post(SILICONFLOW_URL, json=payload, headers=headers, timeout=90)
-    response_data = response.json()
-
-    if response.status_code != 200:
-        error_msg = response_data.get("message", "API request failed")
-        logger.error(f"LLM API error: {response.status_code} - {error_msg}")
-        raise HTTPException(status_code=response.status_code, detail=error_msg)
-
-    return response_data["choices"][0]["message"]["content"].strip()
-
-
-def humanize_with_retry(text: str) -> str:
-    short = is_short_text(text)
-    input_words = count_words(text)
-    logger.info(f"Processing: {input_words} words, short_text={short}")
-
-    for attempt in range(MAX_RETRIES + 1):
+    async with httpx.AsyncClient(timeout=90.0) as client:
         try:
-            result = call_llm(text, use_short_prompt=short)
-            output_words = count_words(result)
+            async with client.stream("POST", SILICONFLOW_URL, json=payload, headers=headers) as response:
+                if response.status_code != 200:
+                    error_text = await response.aread()
+                    logger.error(f"API error: {response.status_code} - {error_text.decode('utf-8', errors='ignore')}")
+                    yield f"data: {json.dumps({'error': '模型后端响应错误'})}\n\n"
+                    return
 
-            if input_words > 0:
-                ratio = output_words / input_words
-                max_ratio = 1.8 if short else 1.5
-                min_ratio = 0.5
-
-                if ratio > max_ratio or ratio < min_ratio:
-                    logger.warning(
-                        f"Attempt {attempt+1}: length ratio {ratio:.2f} out of range "
-                        f"[{min_ratio}, {max_ratio}] (in={input_words}, out={output_words})"
-                    )
-                    if attempt < MAX_RETRIES:
-                        time.sleep(0.5)
+                async for line in response.aiter_lines():
+                    if not line.strip():
                         continue
+                    if line.startswith("data:"):
+                        data_content = line[5:].strip()
+                        if data_content == "[DONE]":
+                            break
 
-                logger.info(f"Success: ratio={ratio:.2f} (in={input_words}, out={output_words})")
-            return result
-
-        except HTTPException:
-            raise
-        except requests.exceptions.Timeout:
-            logger.error(f"Attempt {attempt+1}: timeout")
-            if attempt < MAX_RETRIES:
-                time.sleep(1)
-                continue
-            raise HTTPException(status_code=504, detail="Request timed out. Please try with shorter text.")
-        except requests.exceptions.ConnectionError:
-            logger.error(f"Attempt {attempt+1}: connection error")
-            if attempt < MAX_RETRIES:
-                time.sleep(1)
-                continue
-            raise HTTPException(status_code=503, detail="Cannot connect to AI service. Please try again later.")
+                        try:
+                            res_json = json.loads(data_content)
+                            delta = res_json["choices"][0]["delta"].get("content", "")
+                            if delta:
+                                yield f"data: {json.dumps({'chunk': delta}, ensure_ascii=False)}\n\n"
+                        except Exception:
+                            continue
         except Exception as e:
-            logger.error(f"Attempt {attempt+1}: {str(e)}")
-            if attempt < MAX_RETRIES:
-                time.sleep(0.5)
-                continue
-            raise HTTPException(status_code=500, detail=str(e))
-
-    return result
+            logger.error(f"Stream error: {str(e)}")
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
 
 @app.post("/api/humanize")
 async def humanize_text(request: TextRequest):
     if not SILICONFLOW_API_KEY:
-        raise HTTPException(status_code=500, detail="API Key not configured")
+        raise HTTPException(status_code=500, detail="未配置后端 SILICONFLOW_API_KEY 环境变量")
 
-    result_text = humanize_with_retry(request.text)
-    return {"success": True, "data": result_text}
+    short = is_short_text(request.text)
+    logger.info(f"Request: length={count_length(request.text)}, short={short}, stream={request.stream}")
+
+    if request.stream:
+        return StreamingResponse(
+            llm_stream_generator(request.text, use_short_prompt=short),
+            media_type="text/event-stream"
+        )
+    else:
+        full_text = ""
+        async for chunk_msg in llm_stream_generator(request.text, use_short_prompt=short):
+            if "chunk" in chunk_msg:
+                try:
+                    line_data = json.loads(chunk_msg.replace("data: ", "").strip())
+                    full_text += line_data.get("chunk", "")
+                except:
+                    pass
+        return {"success": True, "data": full_text.strip()}
 
 
 @app.get("/")
 async def health_check():
     return {
         "status": "ok",
-        "service": "BypassAI API",
+        "service": "BypassAI Advanced API",
         "model": MODEL_NAME,
-        "prompt_length": len(SYSTEM_PROMPT),
-        "max_input_chars": MAX_INPUT_CHARS
+        "config": {
+            "max_input_chars": MAX_INPUT_CHARS,
+            "api_key_configured": bool(SILICONFLOW_API_KEY)
+        }
     }
 
 if __name__ == "__main__":
