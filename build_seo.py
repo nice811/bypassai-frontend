@@ -240,28 +240,56 @@ html_template = """<!DOCTYPE html>
         btn.disabled = true;
         loading.style.display = 'block';
         outputField.value = '';
-        outputField.placeholder = 'Processing...';
+        outputField.placeholder = '';
         document.getElementById('outputCount').innerText = "0 words";
 
         try {{
             const response = await fetch(API_URL, {{
                 method: 'POST',
                 headers: {{ 'Content-Type': 'application/json' }},
-                body: JSON.stringify({{ text: input }})
+                body: JSON.stringify({{ text: input, stream: true }})
             }});
 
-            const result = await response.json();
-            if (response.ok && result.success) {{
-                outputField.value = result.data;
-                outputField.placeholder = 'Humanized text will appear here...';
-                const outWords = result.data.trim().split(/\\s+/).length;
-                document.getElementById('outputCount').innerText = `${{outWords}} words`;
-                showToast('Text humanized successfully!', 'success');
-            }} else {{
-                const errMsg = result.detail || result.message || 'Failed to process text.';
-                outputField.placeholder = 'Humanized text will appear here...';
-                showToast(typeof errMsg === 'string' ? errMsg : 'Processing failed. Please try again.', 'error');
+            if (!response.ok) {{
+                const err = await response.json().catch(() => ({{ detail: 'Request failed' }}));
+                showToast(err.detail || 'Processing failed.', 'error');
+                return;
             }}
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+            let fullText = '';
+
+            while (true) {{
+                const {{ done, value }} = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, {{ stream: true }});
+                const lines = chunk.split('\\n');
+
+                for (const line of lines) {{
+                    if (line.startsWith('data: ')) {{
+                        try {{
+                            const data = JSON.parse(line.slice(6));
+                            if (data.error) {{
+                                showToast(data.error, 'error');
+                                return;
+                            }} else if (data.chunk) {{
+                                fullText += data.chunk;
+                                outputField.value = fullText;
+                                outputField.scrollTop = outputField.scrollHeight;
+                                const words = fullText.trim().split(/\\s+/).length;
+                                document.getElementById('outputCount').innerText = `${{words}} words`;
+                            }}
+                        }} catch (e) {{
+                            continue;
+                        }}
+                    }}
+                }}
+            }}
+
+            outputField.placeholder = 'Humanized text will appear here...';
+            showToast('Text humanized successfully!', 'success');
         }} catch (error) {{
             outputField.placeholder = 'Humanized text will appear here...';
             showToast('Cannot connect to the server. Please try again later.', 'error');
