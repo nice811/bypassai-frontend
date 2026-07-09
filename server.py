@@ -18,6 +18,31 @@ app.add_middleware(
 
 SILICONFLOW_API_KEY = os.getenv("SILICONFLOW_API_KEY", "")
 SILICONFLOW_URL = "https://api.siliconflow.cn/v1/chat/completions"
+MODEL_NAME = os.getenv("MODEL_NAME", "deepseek-ai/DeepSeek-V3")
+
+DEFAULT_SYSTEM_PROMPT = """You are an expert human writer who specializes in rewriting AI-generated text to sound natural, organic, and indistinguishable from human-written content.
+
+CORE REQUIREMENTS (STRICTLY FOLLOW THESE RULES):
+1. MEANING PRESERVATION: Keep the original meaning, facts, and core information must remain completely unchanged. Do not add new information or remove key facts.
+
+2. LENGTH CONTROL: The output word count must stay within ±20% of the original text. NEVER expand short sentences into long paragraphs. NEVER pad content.
+
+3. STRUCTURE INTEGRITY: Maintain the original text structure and paragraph layout. If the input has N sentences, output should have roughly N sentences (±1-2). Do not turn a single sentence into a whole paragraph.
+
+4. HUMANNESS ENHANCEMENT:
+   - Vary sentence lengths naturally (mix short and long sentences)
+   - Use idioms, colloquial expressions, and conversational tone where appropriate
+   - Introduce natural perplexity and burstiness
+   - Avoid repetitive sentence patterns (avoid: "Furthermore", "In conclusion", etc.)
+   - Add minor "imperfections" that real humans make (contractions, slightly varied wording)
+
+5. STYLE FIDELITY: Preserve the original writing style (academic stays academic, casual stays casual, technical stays technical).
+
+6. ZERO AI DETECTION: The output must easily bypass all AI detectors including GPTZero, Turnitin, Originality.ai, and others.
+
+Directly output the rewritten text only, no explanations, no comments, no markdown formatting."""
+
+SYSTEM_PROMPT = os.getenv("SYSTEM_PROMPT", DEFAULT_SYSTEM_PROMPT)
 
 class TextRequest(BaseModel):
     text: str
@@ -30,21 +55,15 @@ async def humanize_text(request: TextRequest):
     if not SILICONFLOW_API_KEY:
         raise HTTPException(status_code=500, detail="API Key not configured")
 
-    system_prompt = (
-        "You are an expert human writer. Your task is to rewrite the user's input text "
-        "to make it sound completely natural, organic, and human-written. "
-        "Strictly avoid common AI patterns, repetitive sentence structures, and overly formal transitions. "
-        "Maintain the original meaning and core facts, but vary sentence lengths, use idioms appropriately, "
-        "and introduce minor natural perplexity and burstiness. The output must easily bypass AI detectors like GPTZero and Turnitin."
-    )
-
     payload = {
-        "model": "deepseek-ai/DeepSeek-V3",
+        "model": MODEL_NAME,
         "messages": [
-            {"role": "system", "content": system_prompt},
+            {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": request.text}
         ],
-        "stream": False
+        "stream": False,
+        "temperature": 0.85,
+        "top_p": 0.9
     }
 
     headers = {
@@ -59,7 +78,7 @@ async def humanize_text(request: TextRequest):
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail=response_data.get("message", "API request failed"))
             
-        result_text = response_data["choices"][0]["message"]["content"]
+        result_text = response_data["choices"][0]["message"]["content"].strip()
         return {"success": True, "data": result_text}
         
     except Exception as e:
@@ -67,7 +86,12 @@ async def humanize_text(request: TextRequest):
 
 @app.get("/")
 async def health_check():
-    return {"status": "ok", "service": "BypassAI API"}
+    return {
+        "status": "ok",
+        "service": "BypassAI API",
+        "model": MODEL_NAME,
+        "prompt_length": len(SYSTEM_PROMPT)
+    }
 
 if __name__ == "__main__":
     import uvicorn
