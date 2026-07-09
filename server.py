@@ -59,7 +59,7 @@ SYSTEM_PROMPT = os.getenv("SYSTEM_PROMPT", DEFAULT_SYSTEM_PROMPT)
 
 class TextRequest(BaseModel):
     text: str
-    stream: bool = True
+    stream: bool = False
 
     @field_validator("text")
     @classmethod
