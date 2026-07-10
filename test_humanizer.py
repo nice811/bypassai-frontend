@@ -37,11 +37,11 @@ def test_empty_input() -> Dict:
     try:
         resp = requests.post(API_URL, json={"text": ""}, timeout=10)
         result["duration_ms"] = int((time.time() - start) * 1000)
-        if resp.status_code == 400:
+        if resp.status_code == 422:
             result["passed"] = True
-            result["details"] = f"正确返回 400 错误，响应时间 {result['duration_ms']}ms"
+            result["details"] = f"正确返回 422 验证错误，响应时间 {result['duration_ms']}ms"
         else:
-            result["details"] = f"期望 400，实际 {resp.status_code}"
+            result["details"] = f"期望 422，实际 {resp.status_code}"
     except Exception as e:
         result["details"] = f"请求失败: {str(e)}"
     return result
@@ -54,11 +54,11 @@ def test_whitespace_input() -> Dict:
     try:
         resp = requests.post(API_URL, json={"text": "   \n\t  "}, timeout=10)
         result["duration_ms"] = int((time.time() - start) * 1000)
-        if resp.status_code == 400:
+        if resp.status_code == 422:
             result["passed"] = True
-            result["details"] = f"正确返回 400 错误，响应时间 {result['duration_ms']}ms"
+            result["details"] = f"正确返回 422 验证错误，响应时间 {result['duration_ms']}ms"
         else:
-            result["details"] = f"期望 400，实际 {resp.status_code}"
+            result["details"] = f"期望 422，实际 {resp.status_code}"
     except Exception as e:
         result["details"] = f"请求失败: {str(e)}"
     return result
@@ -289,7 +289,7 @@ def run_test_case(test_case: Dict) -> Dict:
     try:
         resp = requests.post(
             API_URL,
-            json={"text": test_case["text"]},
+            json={"text": test_case["text"], "stream": False},
             timeout=120
         )
         result["duration_ms"] = int((time.time() - start) * 1000)

@@ -4,19 +4,19 @@
 
 【一、功能测试】
 --------------------------------------------------
-通过: 3/5
+通过: 5/5
 
 ✅ PASS  健康检查
-        服务正常，响应时间 1189ms
+        服务正常，响应时间 1418ms
 
-❌ FAIL  空输入验证
-        期望 400，实际 422
+✅ PASS  空输入验证
+        正确返回 422 验证错误，响应时间 883ms
 
-❌ FAIL  空白输入验证
-        期望 400，实际 422
+✅ PASS  空白输入验证
+        正确返回 422 验证错误，响应时间 2396ms
 
 ✅ PASS  缺少 text 字段
-        正确返回 422 验证错误，响应时间 1791ms
+        正确返回 422 验证错误，响应时间 1855ms
 
 ✅ PASS  超长输入限制
         正确拒绝超长输入 (12500 chars)，状态码 422
@@ -27,46 +27,46 @@
 
 [长度测试] 短文本（句子级）
     状态: ✅ OK
-    耗时: 11069ms
+    耗时: 5963ms
     输入长度: 65 字符
-    输出长度: 56 字符 (比例: 0.86)
+    输出长度: 47 字符 (比例: 0.72)
     句子数: 1 → 1
-    困惑度变化: -1.4%
+    困惑度变化: -10.6%
     句长变异系数: 0.000 → 0.000 (+0.0%)
-    词汇重叠率: 30.0%
+    词汇重叠率: 40.0%
     基本质量检查: 通过
 
     原文片段:
       Artificial intelligence is transforming the way we work and live.
 
     输出片段:
-      AI is changing how we go about our daily lives and jobs.
+      AI is reshaping how we live and work every day.
 
 [长度测试] 中等文本（段落级）
     状态: ✅ OK
-    耗时: 14510ms
+    耗时: 6058ms
     输入长度: 328 字符
-    输出长度: 323 字符 (比例: 0.98)
-    句子数: 3 → 3
-    困惑度变化: -0.5%
-    句长变异系数: 0.352 → 0.253 (-28.0%)
-    词汇重叠率: 31.8%
+    输出长度: 353 字符 (比例: 1.08)
+    句子数: 3 → 4
+    困惑度变化: +5.3%
+    句长变异系数: 0.352 → 0.373 (+6.0%)
+    词汇重叠率: 18.2%
     基本质量检查: 通过
 
     原文片段:
       Machine learning algorithms have become increasingly sophisticated in recent years. These systems ca...
 
     输出片段:
-      These days, machine learning has gotten scarily good at spotting patterns we'd never catch ourselves...
+      AI systems have gotten remarkably smart lately. They crunch through mountains of data, spotting conn...
 
 [长度测试] 长文本（文章级）
     状态: ✅ OK
-    耗时: 8811ms
+    耗时: 8965ms
     输入长度: 719 字符
-    输出长度: 824 字符 (比例: 1.15)
-    句子数: 7 → 5
-    困惑度变化: +1.5%
-    句长变异系数: 0.291 → 0.329 (+13.1%)
+    输出长度: 818 字符 (比例: 1.14)
+    句子数: 7 → 6
+    困惑度变化: +2.3%
+    句长变异系数: 0.291 → 0.285 (-2.0%)
     词汇重叠率: 27.2%
     基本质量检查: 通过
 
@@ -74,134 +74,136 @@
       The evolution of natural language processing has been remarkable. From early rule-based systems to t...
 
     输出片段:
-      The progress in natural language processing has been nothing short of astonishing. What started with...
+      Natural language processing has come a long way from its early days. What started with basic rule-ba...
 
 [文体测试] 学术论文风格
     状态: ✅ OK
-    耗时: 10350ms
+    耗时: 7364ms
     输入长度: 604 字符
-    输出长度: 501 字符 (比例: 0.83)
+    输出长度: 611 字符 (比例: 1.01)
     句子数: 5 → 6
-    困惑度变化: +10.0%
-    句长变异系数: 0.327 → 0.457 (+39.9%)
-    词汇重叠率: 24.2%
+    困惑度变化: +9.0%
+    句长变异系数: 0.327 → 0.276 (-15.5%)
+    词汇重叠率: 27.3%
     基本质量检查: 通过
 
     原文片段:
       This study investigates the relationship between socioeconomic status and educational outcomes. Usin...
 
     输出片段:
-      We looked at how money and family background affect kids' school performance. Following 5,000 studen...
+      Our research explores how socioeconomic factors influence student performance. Analyzing data from 5...
 
 [文体测试] 商务邮件风格
     状态: ✅ OK
-    耗时: 7472ms
+    耗时: 8286ms
     输入长度: 430 字符
-    输出长度: 436 字符 (比例: 1.01)
-    句子数: 5 → 6
-    困惑度变化: +9.8%
-    句长变异系数: 0.534 → 0.625 (+17.1%)
-    词汇重叠率: 37.7%
+    输出长度: 442 字符 (比例: 1.03)
+    句子数: 5 → 5
+    困惑度变化: +3.1%
+    句长变异系数: 0.534 → 0.554 (+3.8%)
+    词汇重叠率: 41.0%
     基本质量检查: 通过
 
     原文片段:
       Dear Team, I am writing to provide an update on the Q3 project timeline. After reviewing the deliver...
 
     输出片段:
-      Hey team, just wanted to give everyone a quick update on where we stand with the Q3 project. I went ...
+      Hi everyone,  
+
+Just wanted to share a quick update on where we stand with the Q3 project. Based on ...
 
 [文体测试] 创意写作风格
     状态: ✅ OK
-    耗时: 8368ms
+    耗时: 7510ms
     输入长度: 362 字符
-    输出长度: 547 字符 (比例: 1.51)
+    输出长度: 617 字符 (比例: 1.70)
     句子数: 5 → 5
-    困惑度变化: +2.8%
-    句长变异系数: 0.343 → 0.276 (-19.6%)
-    词汇重叠率: 34.0%
+    困惑度变化: +1.3%
+    句长变异系数: 0.343 → 0.266 (-22.5%)
+    词汇重叠率: 31.9%
     基本质量检查: 通过
 
     原文片段:
       The old library smelled of dust and forgotten stories. Sunlight streamed through cracked windows, il...
 
     输出片段:
-      The musty scent of yellowed pages and long-neglected tales hung thick in the aging library. Golden s...
+      The musty scent of aged paper filled the old library, mingling with the faint perfume of decades-old...
 
 [文体测试] 技术文档风格
     状态: ✅ OK
-    耗时: 8032ms
+    耗时: 7806ms
     输入长度: 512 字符
-    输出长度: 564 字符 (比例: 1.10)
-    句子数: 6 → 6
-    困惑度变化: +7.9%
-    句长变异系数: 0.201 → 0.298 (+48.6%)
-    词汇重叠率: 40.0%
+    输出长度: 581 字符 (比例: 1.13)
+    句子数: 6 → 5
+    困惑度变化: +2.8%
+    句长变异系数: 0.201 → 0.286 (+42.6%)
+    词汇重叠率: 52.7%
     基本质量检查: 通过
 
     原文片段:
       The authentication flow consists of three main steps. First, the client sends a POST request to the ...
 
     输出片段:
-      Here's how the authentication works - it's a three-step dance. First, you send a POST request to /ap...
+      Here's how the authentication process works in three simple stages: To start, the client submits a P...
 
 [语言测试] 英文常用词
     状态: ✅ OK
-    耗时: 5099ms
+    耗时: 4565ms
     输入长度: 162 字符
     输出长度: 186 字符 (比例: 1.15)
     句子数: 2 → 2
-    困惑度变化: -1.2%
-    句长变异系数: 0.471 → 0.530 (+12.5%)
-    词汇重叠率: 41.7%
+    困惑度变化: -9.1%
+    句长变异系数: 0.471 → 0.439 (-6.9%)
+    词汇重叠率: 37.5%
     基本质量检查: 通过
 
     原文片段:
       The quick brown fox jumps over the lazy dog. This sentence contains every letter of the alphabet and...
 
     输出片段:
-      A speedy brown fox leaps right over the sleepy dog. This classic phrase packs every letter from A to...
+      A swift brown fox effortlessly leaps above a sleeping dog. People often use this particular phrase f...
 
 [内容保真测试] 带数字和统计数据
     状态: ✅ OK
-    耗时: 6566ms
+    耗时: 7988ms
     输入长度: 325 字符
-    输出长度: 414 字符 (比例: 1.27)
-    句子数: 3 → 4
-    困惑度变化: +4.2%
-    句长变异系数: 0.182 → 0.572 (+214.3%)
-    词汇重叠率: 44.4%
+    输出长度: 354 字符 (比例: 1.09)
+    句子数: 3 → 5
+    困惑度变化: +1.2%
+    句长变异系数: 0.182 → 0.695 (+282.0%)
+    词汇重叠率: 46.7%
     基本质量检查: 通过
 
     原文片段:
       According to the 2024 industry report, global e-commerce sales reached $6.3 trillion, representing a...
 
     输出片段:
-      The latest industry figures for 2024 show global online shopping hitting a whopping $6.3 trillion - ...
+      The latest industry figures show global online sales hit $6.3 trillion this year, growing by 12.5% c...
 
 [内容保真测试] 专业术语密集
     状态: ✅ OK
-    耗时: 12373ms
+    耗时: 6058ms
     输入长度: 340 字符
-    输出长度: 332 字符 (比例: 0.98)
-    句子数: 4 → 3
-    困惑度变化: -1.7%
-    句长变异系数: 0.359 → 0.350 (-2.6%)
-    词汇重叠率: 39.5%
+    输出长度: 393 字符 (比例: 1.16)
+    句子数: 4 → 4
+    困惑度变化: +0.4%
+    句长变异系数: 0.359 → 0.253 (-29.5%)
+    词汇重叠率: 47.4%
     基本质量检查: 通过
 
     原文片段:
       The patient presented with acute myocardial infarction accompanied by ventricular tachycardia. Elect...
 
     输出片段:
-      The patient came in with a sudden heart attack and erratic heartbeat. The EKG showed clear signs of ...
+      The patient came in with a sudden heart attack along with irregular, rapid heartbeats. The EKG revea...
 
 [短文本边界测试] 超短文本（5词）
     状态: ✅ OK
-    耗时: 4551ms
+    耗时: 3304ms
     输入长度: 26 字符
-    输出长度: 38 字符 (比例: 1.46)
+    输出长度: 35 字符 (比例: 1.35)
     句子数: 1 → 1
-    困惑度变化: +38.5%
+    困惑度变化: +22.9%
     句长变异系数: 0.000 → 0.000 (+0.0%)
     词汇重叠率: 0.0%
     基本质量检查: 通过
@@ -210,15 +212,15 @@
       AI is changing everything.
 
     输出片段:
-      AI's transforming the game completely.
+      AI's transforming how we do things.
 
 [短文本边界测试] 极短文本（10词）
     状态: ✅ OK
-    耗时: 9206ms
+    耗时: 4989ms
     输入长度: 53 字符
-    输出长度: 74 字符 (比例: 1.40)
+    输出长度: 42 字符 (比例: 0.79)
     句子数: 1 → 1
-    困惑度变化: +1.9%
+    困惑度变化: -7.3%
     句长变异系数: 0.000 → 0.000 (+0.0%)
     词汇重叠率: 22.2%
     基本质量检查: 通过
@@ -227,48 +229,48 @@
       The weather today is absolutely perfect for a picnic.
 
     输出片段:
-      It's a dream of a day for packing up some sandwiches and heading outdoors.
+      What a gorgeous day for an outdoor picnic!
 
 [短文本边界测试] 边界文本（约30词）
     状态: ✅ OK
-    耗时: 17111ms
+    耗时: 6025ms
     输入长度: 206 字符
-    输出长度: 381 字符 (比例: 1.85)
-    句子数: 3 → 4
-    困惑度变化: +2.0%
-    句长变异系数: 0.148 → 0.422 (+185.1%)
-    词汇重叠率: 27.6%
+    输出长度: 253 字符 (比例: 1.23)
+    句子数: 3 → 3
+    困惑度变化: -0.1%
+    句长变异系数: 0.148 → 0.214 (+45.0%)
+    词汇重叠率: 24.1%
     基本质量检查: 通过
 
     原文片段:
       Artificial intelligence has become an integral part of modern society. From smartphones to self-driv...
 
     输出片段:
-      These days, AI is woven into the fabric of our lives like never before. Whether it's the smartphone ...
+      AI is now woven into the fabric of our everyday lives. You'll find it in everything from the phone i...
 
 [短文本边界测试] 单个短语无句号
     状态: ✅ OK
-    耗时: 13976ms
+    耗时: 2797ms
     输入长度: 60 字符
-    输出长度: 131 字符 (比例: 2.18)
-    句子数: 1 → 2
-    困惑度变化: +14.0%
-    句长变异系数: 0.000 → 0.283 (+0.0%)
-    词汇重叠率: 12.5%
+    输出长度: 61 字符 (比例: 1.02)
+    句子数: 1 → 1
+    困惑度变化: +5.8%
+    句长变异系数: 0.000 → 0.000 (+0.0%)
+    词汇重叠率: 0.0%
     基本质量检查: 通过
 
     原文片段:
       Machine learning models can sometimes produce biased results
 
     输出片段:
-      Sometimes, AI models unintentionally wind up reflecting biases from their training data. It's one of...
+      AI systems occasionally generate outcomes with unfair biases.
 
 【三、综合评估】
 --------------------------------------------------
-平均响应时间: 9821ms
-平均困惑度变化: +6.3%
-平均句长变异系数变化: +34.3%
-平均词汇重叠率: 29.5%
+平均响应时间: 6263ms
+平均困惑度变化: +1.9%
+平均句长变异系数变化: +21.6%
+平均词汇重叠率: 29.7%
 基本质量检查通过率: 100%
 
 【评分标准说明】

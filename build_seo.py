@@ -117,6 +117,22 @@ html_template = """<!DOCTYPE html>
         .nav-links a:hover {{ text-decoration: underline; }}
         .feature-list {{ text-align: left; max-width: 600px; margin: 0 auto 30px; padding: 0 20px; }}
         .feature-list li {{ margin-bottom: 10px; color: #4b5563; }}
+
+        .pricing-section {{ margin-top: 60px; }}
+        .pricing-section h2 {{ text-align: center; color: #4f46e5; font-size: 2rem; margin-bottom: 30px; }}
+        .pricing-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }}
+        .pricing-card {{ background: white; border: 2px solid #e5e7eb; border-radius: 12px; padding: 24px; text-align: center; }}
+        .pricing-card.featured {{ background: #4f46e5; border-color: #4f46e5; }}
+        .pricing-card h3 {{ font-size: 1.5rem; margin-bottom: 8px; }}
+        .pricing-card p {{ font-size: 0.9rem; }}
+        .pricing-card .price {{ margin: 20px 0; }}
+        .pricing-card .price span:first-child {{ font-size: 2.5rem; font-weight: bold; }}
+        .pricing-card ul {{ text-align: left; padding: 0 10px; margin-bottom: 20px; }}
+        .pricing-card li {{ margin-bottom: 8px; }}
+        .paddle-button {{ width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }}
+        .pricing-card:not(.featured) .paddle-button {{ background: #4f46e5; color: white; }}
+        .pricing-card.featured .paddle-button {{ background: white; color: #4f46e5; }}
+        .trial-note {{ margin-top: 10px; font-size: 0.8rem; }}
     </style>
 </head>
 <body>
@@ -164,6 +180,60 @@ html_template = """<!DOCTYPE html>
 
     <div class="nav-links">
         <strong>Related Tools:</strong> {internal_links}
+    </div>
+
+    <div class="pricing-section">
+        <h2>Choose Your Plan</h2>
+        <div class="pricing-grid">
+            <div class="pricing-card">
+                <h3 style="color: #4b5563;">Starter</h3>
+                <p style="color: #9ca3af;">基础版 - 适合个人用户</p>
+                <div class="price">
+                    <span style="color: #4f46e5;">$10</span>
+                    <span style="color: #6b7280;">/月</span>
+                </div>
+                <ul style="color: #4b5563;">
+                    <li>✓ 每月 50 次转换</li>
+                    <li>✓ 标准处理速度</li>
+                    <li>✓ 基础支持</li>
+                </ul>
+                <button class="paddle-button" data-price-id="pri_01kx4wv5dhnyt6agz60yaq745b">Start Free Trial</button>
+                <p class="trial-note" style="color: #9ca3af;">7天免费试用</p>
+            </div>
+            <div class="pricing-card featured">
+                <h3 style="color: white;">Pro</h3>
+                <p style="color: #e0e7ff;">专业版 - 适合学生和专业人士</p>
+                <div class="price">
+                    <span style="color: white;">$40</span>
+                    <span style="color: #e0e7ff;">/月</span>
+                </div>
+                <ul style="color: white;">
+                    <li>✓ 每月 500 次转换</li>
+                    <li>✓ 快速处理速度</li>
+                    <li>✓ 优先支持</li>
+                    <li>✓ 历史记录</li>
+                </ul>
+                <button class="paddle-button" data-price-id="pri_01kx4wzvrsqx17grb62j41ab1e">Start Free Trial</button>
+                <p class="trial-note" style="color: #e0e7ff;">7天免费试用</p>
+            </div>
+            <div class="pricing-card">
+                <h3 style="color: #4b5563;">Advanced</h3>
+                <p style="color: #9ca3af;">高级版 - 适合企业和团队</p>
+                <div class="price">
+                    <span style="color: #4f46e5;">$120</span>
+                    <span style="color: #6b7280;">/月</span>
+                </div>
+                <ul style="color: #4b5563;">
+                    <li>✓ 无限转换次数</li>
+                    <li>✓ 最快处理速度</li>
+                    <li>✓ 专属客服支持</li>
+                    <li>✓ 团队协作功能</li>
+                    <li>✓ API 访问权限</li>
+                </ul>
+                <button class="paddle-button" data-price-id="pri_01kx4x4me2tgcbprgrm604g0kk">Start Free Trial</button>
+                <p class="trial-note" style="color: #9ca3af;">7天免费试用</p>
+            </div>
+        </div>
     </div>
 
     <footer>
@@ -305,6 +375,29 @@ html_template = """<!DOCTYPE html>
             processText();
         }}
     }});
+
+    (function() {{
+        const script = document.createElement('script');
+        script.src = 'https://cdn.paddle.com/paddle/v2/paddle.js';
+        script.async = true;
+        script.onload = function() {{
+            Paddle.Initialize({{
+                token: 'pdl_sdbx_client_token_test_4m2k8812v90y168y3q55z8b7z8h8k4v7'
+            }});
+            document.querySelectorAll('.paddle-button').forEach(btn => {{
+                btn.addEventListener('click', function() {{
+                    const priceId = this.getAttribute('data-price-id');
+                    Paddle.Checkout.open({{
+                        priceId: priceId,
+                        customer: {{
+                            email: ''
+                        }}
+                    }});
+                }});
+            }});
+        }};
+        document.head.appendChild(script);
+    }})();
 </script>
 </body>
 </html>
