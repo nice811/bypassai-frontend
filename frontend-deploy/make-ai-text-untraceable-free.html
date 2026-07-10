@@ -33,6 +33,7 @@
     }
     </script>
     <style>
+        * { box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background-color: #f9fafb;
@@ -46,35 +47,72 @@
         p { color: #4b5563; font-size: 1.1rem; }
         .workspace { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 20px; }
         @media (max-width: 768px) { .workspace { grid-template-columns: 1fr; } }
-        
+
         .box-container { background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); position: relative; }
         textarea {
             width: 100%; height: 320px; border: none; font-size: 1rem; resize: none; box-sizing: border-box; background-color: #fff; color: #111827; line-height: 1.6;
         }
         textarea:focus { outline: none; }
-        
+
         .box-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid #f3f4f6; color: #6b7280; font-size: 0.85rem; }
-        
+
         .btn-container { text-align: center; margin-top: 20px; margin-bottom: 20px; }
         .main-btn {
             background-color: #4f46e5; color: white; padding: 14px 50px; font-size: 1.1rem; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);
         }
         .main-btn:hover { background-color: #4338ca; transform: translateY(-1px); }
         .main-btn:disabled { background-color: #9ca3af; cursor: not-allowed; transform: none; box-shadow: none; }
-        
+
+        .clear-btn { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; font-weight: 500; margin-left: 8px; }
+        .clear-btn:hover { background: #fee2e2; }
+
         .copy-btn { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; font-weight: 500; }
         .copy-btn:hover { background: #e5e7eb; }
-        
+
         .loading { display: none; color: #4f46e5; font-weight: bold; margin-top: 12px; text-align: center; }
+        .spinner {
+            display: inline-block; width: 20px; height: 20px; border: 3px solid #e0e7ff; border-top-color: #4f46e5; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 8px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .toast {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1f2937; color: white; padding: 12px 24px; border-radius: 8px; font-size: 0.95rem; z-index: 9999; opacity: 0; transition: opacity 0.3s; pointer-events: none;
+        }
+        .toast.show { opacity: 1; }
+        .toast.error { background: #dc2626; }
+        .toast.success { background: #059669; }
+
+        .char-limit { color: #9ca3af; font-size: 0.8rem; }
+        .char-limit.warn { color: #f59e0b; }
+        .char-limit.danger { color: #dc2626; }
+
         footer { margin-top: 60px; text-align: center; color: #9ca3af; font-size: 0.9rem; border-top: 1px solid #e5e7eb; padding-top: 20px; }
         .nav-links { margin-top: 30px; padding: 16px; background: #fff; border-radius: 8px; border: 1px solid #e5e7eb; }
         .nav-links a { color: #4f46e5; text-decoration: none; margin: 0 8px; font-size: 0.85rem; }
         .nav-links a:hover { text-decoration: underline; }
         .feature-list { text-align: left; max-width: 600px; margin: 0 auto 30px; padding: 0 20px; }
         .feature-list li { margin-bottom: 10px; color: #4b5563; }
+
+        .pricing-section { margin-top: 60px; }
+        .pricing-section h2 { text-align: center; color: #4f46e5; font-size: 2rem; margin-bottom: 30px; }
+        .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
+        .pricing-card { background: white; border: 2px solid #e5e7eb; border-radius: 12px; padding: 24px; text-align: center; }
+        .pricing-card.featured { background: #4f46e5; border-color: #4f46e5; }
+        .pricing-card h3 { font-size: 1.5rem; margin-bottom: 8px; }
+        .pricing-card p { font-size: 0.9rem; }
+        .pricing-card .price { margin: 20px 0; }
+        .pricing-card .price span:first-child { font-size: 2.5rem; font-weight: bold; }
+        .pricing-card ul { text-align: left; padding: 0 10px; margin-bottom: 20px; }
+        .pricing-card li { margin-bottom: 8px; }
+        .paddle-button { width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+        .pricing-card:not(.featured) .paddle-button { background: #4f46e5; color: white; }
+        .pricing-card.featured .paddle-button { background: white; color: #4f46e5; }
+        .trial-note { margin-top: 10px; font-size: 0.8rem; }
     </style>
 </head>
 <body>
+
+<div id="toast" class="toast"></div>
 
 <div class="container">
     <header>
@@ -93,13 +131,13 @@
 
     <div class="workspace">
         <div class="box-container">
-            <textarea id="inputText" placeholder="Paste your AI-generated text here (ChatGPT, Claude, Gemini...)" oninput="countWords()"></textarea>
+            <textarea id="inputText" placeholder="Paste your AI-generated text here (ChatGPT, Claude, Gemini...)..." oninput="countWords()" maxlength="10000"></textarea>
             <div class="box-footer">
                 <span id="inputCount">0 words / 0 chars</span>
-                <span>Input Text</span>
+                <span class="char-limit" id="charLimit">Max 10,000 chars</span>
             </div>
         </div>
-        
+
         <div class="box-container">
             <textarea id="outputText" placeholder="Humanized text will appear here..." readonly></textarea>
             <div class="box-footer">
@@ -108,14 +146,69 @@
             </div>
         </div>
     </div>
-    
+
     <div class="btn-container">
         <button class="main-btn" id="submitBtn" onclick="processText()">Humanize Text</button>
-        <div id="loadingText" class="loading">✨ Humanizing your text with deep learning, please wait...</div>
+        <button class="clear-btn" onclick="clearAll()">Clear</button>
+        <div id="loadingText" class="loading"><span class="spinner"></span>Humanizing your text, please wait...</div>
     </div>
 
     <div class="nav-links">
         <strong>Related Tools:</strong> <a href="/bypass-turnitin-ai-detection-free.html">Bypass Turnitin AI Detection Freely - 100% Undetec...</a> | <a href="/make-chatgpt-text-sound-human.html">How to Make ChatGPT Text Sound Human Instantly...</a> | <a href="/free-ai-rewriter-for-college-essays.html">Free AI Essay Rewriter for College Students (No De...</a> | <a href="/undetectable-ai-website-for-students.html">The Best Undetectable AI Website for Academic Writ...</a> | <a href="/convert-chatgpt-to-human-text-online.html">Convert ChatGPT to Human-Like Text Online...</a> | <a href="/how-to-not-get-caught-using-chatgpt.html">How to Not Get Caught Using ChatGPT for School...</a> | <a href="/best-ai-humanizer-tool-2026.html">Best AI Humanizer Tool in 2026 - Bypass GPTZero & ...</a> | <a href="/remove-ai-plagiarism-from-essay.html">Remove AI Plagiarism and AI Tone from Your Essay...</a> | <a href="/bypass-canvas-ai-detector-tips.html">How to Bypass Canvas and QuillBot AI Detectors...</a>
+    </div>
+
+    <div class="pricing-section">
+        <h2>Choose Your Plan</h2>
+        <div class="pricing-grid">
+            <div class="pricing-card">
+                <h3 style="color: #4b5563;">Starter</h3>
+                <p style="color: #9ca3af;">基础版 - 适合个人用户</p>
+                <div class="price">
+                    <span style="color: #4f46e5;">$10</span>
+                    <span style="color: #6b7280;">/月</span>
+                </div>
+                <ul style="color: #4b5563;">
+                    <li>✓ 每月 50 次转换</li>
+                    <li>✓ 标准处理速度</li>
+                    <li>✓ 基础支持</li>
+                </ul>
+                <button class="paddle-button" onclick="startCheckout('pri_01kx4wv5dhnyt6agz60yaq745b')">Start Free Trial</button>
+                <p class="trial-note" style="color: #9ca3af;">7天免费试用</p>
+            </div>
+            <div class="pricing-card featured">
+                <h3 style="color: white;">Pro</h3>
+                <p style="color: #e0e7ff;">专业版 - 适合学生和专业人士</p>
+                <div class="price">
+                    <span style="color: white;">$40</span>
+                    <span style="color: #e0e7ff;">/月</span>
+                </div>
+                <ul style="color: white;">
+                    <li>✓ 每月 500 次转换</li>
+                    <li>✓ 快速处理速度</li>
+                    <li>✓ 优先支持</li>
+                    <li>✓ 历史记录</li>
+                </ul>
+                <button class="paddle-button" onclick="startCheckout('pri_01kx4wzvrsqx17grb62j41ab1e')">Start Free Trial</button>
+                <p class="trial-note" style="color: #e0e7ff;">7天免费试用</p>
+            </div>
+            <div class="pricing-card">
+                <h3 style="color: #4b5563;">Advanced</h3>
+                <p style="color: #9ca3af;">高级版 - 适合企业和团队</p>
+                <div class="price">
+                    <span style="color: #4f46e5;">$120</span>
+                    <span style="color: #6b7280;">/月</span>
+                </div>
+                <ul style="color: #4b5563;">
+                    <li>✓ 无限转换次数</li>
+                    <li>✓ 最快处理速度</li>
+                    <li>✓ 专属客服支持</li>
+                    <li>✓ 团队协作功能</li>
+                    <li>✓ API 访问权限</li>
+                </ul>
+                <button class="paddle-button" onclick="startCheckout('pri_01kx4x4me2tgcbprgrm604g0kk')">Start Free Trial</button>
+                <p class="trial-note" style="color: #9ca3af;">7天免费试用</p>
+            </div>
+        </div>
     </div>
 
     <footer>
@@ -125,30 +218,56 @@
 </div>
 
 <script>
+    const API_URL = 'https://bypassai-api-production.up.railway.app/api/humanize';
+
+    function showToast(msg, type) {
+        const toast = document.getElementById('toast');
+        toast.textContent = msg;
+        toast.className = 'toast show ' + (type || '');
+        setTimeout(() => { toast.className = 'toast ' + (type || ''); }, 3000);
+    }
+
     function countWords() {
         const text = document.getElementById('inputText').value.trim();
         const words = text === "" ? 0 : text.split(/\s+/).length;
         const chars = text.length;
         document.getElementById('inputCount').innerText = `${words} words / ${chars} chars`;
+
+        const limit = document.getElementById('charLimit');
+        if (chars > 9000) { limit.className = 'char-limit danger'; }
+        else if (chars > 7000) { limit.className = 'char-limit warn'; }
+        else { limit.className = 'char-limit'; }
+    }
+
+    function clearAll() {
+        document.getElementById('inputText').value = '';
+        document.getElementById('outputText').value = '';
+        countWords();
+        document.getElementById('outputCount').innerText = '0 words';
     }
 
     function copyToClipboard() {
         const outputText = document.getElementById('outputText');
         const text = outputText.value.trim();
         if (!text) {
-            alert('No text to copy. Please humanize some text first.');
+            showToast('No text to copy. Please humanize some text first.', 'error');
             return;
         }
         if (navigator.clipboard) {
             navigator.clipboard.writeText(text).then(() => {
                 const copyBtn = document.getElementById('copyBtn');
                 copyBtn.innerText = "✓ Copied!";
+                showToast('Copied to clipboard!', 'success');
                 setTimeout(() => { copyBtn.innerText = "Copy Text"; }, 2000);
+            }).catch(() => {
+                outputText.select();
+                document.execCommand('copy');
+                showToast('Copied to clipboard!', 'success');
             });
         } else {
             outputText.select();
             document.execCommand('copy');
-            alert('Text copied to clipboard!');
+            showToast('Copied to clipboard!', 'success');
         }
     }
 
@@ -159,32 +278,66 @@
         const loading = document.getElementById('loadingText');
 
         if (!input.trim()) {
-            alert('Please enter some text first.');
+            showToast('Please enter some text first.', 'error');
             return;
         }
 
         btn.disabled = true;
         loading.style.display = 'block';
         outputField.value = '';
+        outputField.placeholder = '';
         document.getElementById('outputCount').innerText = "0 words";
 
         try {
-            const response = await fetch('https://bypassai-api-production.up.railway.app/api/humanize', {
+            const response = await fetch(API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: input })
+                body: JSON.stringify({ text: input, stream: true })
             });
 
-            const result = await response.json();
-            if (response.ok && result.success) {
-                outputField.value = result.data;
-                const outWords = result.data.trim().split(/\s+/).length;
-                document.getElementById('outputCount').innerText = `${outWords} words`;
-            } else {
-                alert('Error: ' + (result.detail || result.message || 'Failed to process text.'));
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({ detail: 'Request failed' }));
+                showToast(err.detail || 'Processing failed.', 'error');
+                return;
             }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+            let fullText = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, { stream: true });
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            if (data.error) {
+                                showToast(data.error, 'error');
+                                return;
+                            } else if (data.chunk) {
+                                fullText += data.chunk;
+                                outputField.value = fullText;
+                                outputField.scrollTop = outputField.scrollHeight;
+                                const words = fullText.trim().split(/\s+/).length;
+                                document.getElementById('outputCount').innerText = `${words} words`;
+                            }
+                        } catch (e) {
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            outputField.placeholder = 'Humanized text will appear here...';
+            showToast('Text humanized successfully!', 'success');
         } catch (error) {
-            alert('Could not connect to the server. Please try again later.');
+            outputField.placeholder = 'Humanized text will appear here...';
+            showToast('Cannot connect to the server. Please try again later.', 'error');
         } finally {
             btn.disabled = false;
             loading.style.display = 'none';
@@ -192,10 +345,56 @@
     }
 
     document.getElementById('inputText').addEventListener('keydown', function(e) {
-        if (e.ctrlKey && e.key === 'Enter') {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
             processText();
         }
     });
+
+    async function startCheckout(priceId) {
+        const btns = document.querySelectorAll('.paddle-button');
+        btns.forEach(b => { b.disabled = true; b.innerText = 'Loading...'; });
+        
+        try {
+            const response = await fetch('https://bypassai-api-production.up.railway.app/api/checkout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ price_id: priceId })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success && result.url) {
+                window.open(result.url, '_blank');
+            } else {
+                showToast(result.detail || 'Failed to create checkout', 'error');
+            }
+        } catch (error) {
+            showToast('Could not connect to server. Please try again.', 'error');
+            console.error('Checkout error:', error);
+        } finally {
+            btns.forEach(b => { b.disabled = false; b.innerText = 'Start Free Trial'; });
+        }
+    }
+
+    (function() {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.paddle.com/paddle/v2/paddle.js';
+        script.async = true;
+        script.onload = function() {
+            try {
+                Paddle.Initialize({
+                    token: 'pdl_sdbx_client_token_test_4m2k8812v90y168y3q55z8b7z8h8k4v7'
+                });
+            } catch (e) {
+                console.error('Paddle init failed:', e);
+            }
+        };
+        script.onerror = function() {
+            console.warn('Paddle SDK failed to load');
+        };
+        document.head.appendChild(script);
+    })();
 </script>
 </body>
 </html>

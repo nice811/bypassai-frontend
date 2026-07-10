@@ -197,7 +197,7 @@ html_template = """<!DOCTYPE html>
                     <li>✓ 标准处理速度</li>
                     <li>✓ 基础支持</li>
                 </ul>
-                <button class="paddle-button" data-price-id="pri_01kx4wv5dhnyt6agz60yaq745b">Start Free Trial</button>
+                <button class="paddle-button" onclick="startCheckout('pri_01kx4wv5dhnyt6agz60yaq745b')">Start Free Trial</button>
                 <p class="trial-note" style="color: #9ca3af;">7天免费试用</p>
             </div>
             <div class="pricing-card featured">
@@ -213,7 +213,7 @@ html_template = """<!DOCTYPE html>
                     <li>✓ 优先支持</li>
                     <li>✓ 历史记录</li>
                 </ul>
-                <button class="paddle-button" data-price-id="pri_01kx4wzvrsqx17grb62j41ab1e">Start Free Trial</button>
+                <button class="paddle-button" onclick="startCheckout('pri_01kx4wzvrsqx17grb62j41ab1e')">Start Free Trial</button>
                 <p class="trial-note" style="color: #e0e7ff;">7天免费试用</p>
             </div>
             <div class="pricing-card">
@@ -230,7 +230,7 @@ html_template = """<!DOCTYPE html>
                     <li>✓ 团队协作功能</li>
                     <li>✓ API 访问权限</li>
                 </ul>
-                <button class="paddle-button" data-price-id="pri_01kx4x4me2tgcbprgrm604g0kk">Start Free Trial</button>
+                <button class="paddle-button" onclick="startCheckout('pri_01kx4x4me2tgcbprgrm604g0kk')">Start Free Trial</button>
                 <p class="trial-note" style="color: #9ca3af;">7天免费试用</p>
             </div>
         </div>
@@ -376,25 +376,47 @@ html_template = """<!DOCTYPE html>
         }}
     }});
 
+    async function startCheckout(priceId) {{
+        const btns = document.querySelectorAll('.paddle-button');
+        btns.forEach(b => {{ b.disabled = true; b.innerText = 'Loading...'; }});
+        
+        try {{
+            const response = await fetch('{api_url}/api/checkout', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{ price_id: priceId }})
+            }});
+            
+            const result = await response.json();
+            
+            if (result.success && result.url) {{
+                window.open(result.url, '_blank');
+            }} else {{
+                showToast(result.detail || 'Failed to create checkout', 'error');
+            }}
+        }} catch (error) {{
+            showToast('Could not connect to server. Please try again.', 'error');
+            console.error('Checkout error:', error);
+        }} finally {{
+            btns.forEach(b => {{ b.disabled = false; b.innerText = 'Start Free Trial'; }});
+        }}
+    }}
+
     (function() {{
         const script = document.createElement('script');
         script.src = 'https://cdn.paddle.com/paddle/v2/paddle.js';
         script.async = true;
         script.onload = function() {{
-            Paddle.Initialize({{
-                token: 'pdl_sdbx_client_token_test_4m2k8812v90y168y3q55z8b7z8h8k4v7'
-            }});
-            document.querySelectorAll('.paddle-button').forEach(btn => {{
-                btn.addEventListener('click', function() {{
-                    const priceId = this.getAttribute('data-price-id');
-                    Paddle.Checkout.open({{
-                        priceId: priceId,
-                        customer: {{
-                            email: ''
-                        }}
-                    }});
+            try {{
+                Paddle.Initialize({{
+                    token: 'pdl_sdbx_client_token_test_4m2k8812v90y168y3q55z8b7z8h8k4v7'
                 }});
-            }});
+            }} catch (e) {{
+                console.error('Paddle init failed:', e);
+            }}
+        }};
+        script.onerror = function() {{
+            console.warn('Paddle SDK failed to load');
         }};
         document.head.appendChild(script);
     }})();
@@ -435,6 +457,8 @@ for item in seo_keywords:
     )
     with open(file_name, "w", encoding="utf-8") as f:
         f.write(page_content)
+    with open(f"frontend-deploy/{file_name}", "w", encoding="utf-8") as f:
+        f.write(page_content)
     print(f"已生成: {file_name}")
 
 index_content = html_template.format(
@@ -448,13 +472,19 @@ index_content = html_template.format(
 )
 with open("index.html", "w", encoding="utf-8") as f:
     f.write(index_content)
+with open("frontend-deploy/index.html", "w", encoding="utf-8") as f:
+    f.write(index_content)
 print("已生成: index.html")
 
 with open("sitemap.xml", "w", encoding="utf-8") as f:
     f.write(generate_sitemap())
+with open("frontend-deploy/sitemap.xml", "w", encoding="utf-8") as f:
+    f.write(generate_sitemap())
 print("已生成: sitemap.xml")
 
 with open("robots.txt", "w", encoding="utf-8") as f:
+    f.write(generate_robots())
+with open("frontend-deploy/robots.txt", "w", encoding="utf-8") as f:
     f.write(generate_robots())
 print("已生成: robots.txt")
 

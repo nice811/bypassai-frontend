@@ -324,6 +324,60 @@ async def get_plans():
     }
 
 
+class CheckoutRequest(BaseModel):
+    price_id: str
+    email: str = ""
+
+
+@app.post("/api/checkout")
+async def create_checkout(request: CheckoutRequest):
+    if not PADDLE_API_KEY:
+        raise HTTPException(status_code=500, detail="Paddle API key not configured")
+    
+    if request.price_id not in [p["id"] for p in PRICING_PLAN.values()]:
+        raise HTTPException(status_code=400, detail="Invalid price ID")
+    
+    import httpx
+    
+    url = f"{PADDLE_API_BASE}/v3/checkout/links"
+    headers = {
+        "Authorization": f"Bearer {PADDLE_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    data = {
+        "items": [
+            {
+                "price_id": request.price_id,
+                "quantity": 1
+            }
+        ],
+        "customer": {
+            "email": request.email if request.email else f"guest_{int(datetime.now().timestamp())}@example.com"
+        },
+        "return_url": f"{FRONTEND_ORIGINS[0] if FRONTEND_ORIGINS else 'https://old-leaf-3c49.mr6988990.workers.dev'}/success",
+        "status_url": f"{PADDLE_API_BASE.replace('api.sandbox', 'api')}/webhook/paddle"
+    }
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, headers=headers, json=data)
+            result = response.json()
+            
+            if response.status_code == 200:
+                checkout_url = result.get("data", {}).get("url", "")
+                if checkout_url:
+                    return {"success": True, "url": checkout_url}
+                else:
+                    raise HTTPException(status_code=500, detail="Checkout URL not returned")
+            else:
+                logger.error(f"Paddle API error: {response.status_code} - {result}")
+                raise HTTPException(status_code=response.status_code, detail=result.get("error", {}).get("message", "Failed to create checkout"))
+    except Exception as e:
+        logger.error(f"Checkout error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/webhook/paddle")
 async def paddle_webhook(request: Request):
     try:

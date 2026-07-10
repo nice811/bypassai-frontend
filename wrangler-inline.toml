@@ -1,0 +1,8 @@
+name = "old-leaf-3c49"
+main = "worker-inline.js"
+compatibility_date = "2024-01-01"
+workers_dev = true
+
+# 部署命令:
+#   1) wrangler login   (一次性)
+#   2) wrangler deploy --config wrangler-inline.toml
