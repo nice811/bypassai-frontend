@@ -27,6 +27,7 @@ html_template = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.paddle.com; frame-src https://sandbox-checkout.paddle.com https://checkout.paddle.com; connect-src 'self' https://api.sandbox.paddle.com https://bypassai-api-production.up.railway.app; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#4f46e5">
     <meta name="twitter:card" content="summary_large_image">
@@ -138,6 +139,7 @@ html_template = """<!DOCTYPE html>
 <body>
 
 <div id="toast" class="toast"></div>
+<div id="paddle-checkout-modal" style="width:100%; max-width:600px; margin:0 auto;"></div>
 
 <div class="container">
     <header>
@@ -376,29 +378,32 @@ html_template = """<!DOCTYPE html>
         }}
     }});
 
-    async function startCheckout(priceId) {{
+    function startCheckout(priceId) {{
+        if (typeof Paddle === 'undefined') {{
+            showToast('Loading payment system...', 'info');
+            setTimeout(() => startCheckout(priceId), 500);
+            return;
+        }}
+        
         const btns = document.querySelectorAll('.paddle-button');
-        btns.forEach(b => {{ b.disabled = true; b.innerText = 'Loading...'; }});
+        btns.forEach(b => {{ b.disabled = true; }});
         
         try {{
-            const response = await fetch('{api_url}/api/checkout', {{
-                method: 'POST',
-                headers: {{ 'Content-Type': 'application/json' }},
-                body: JSON.stringify({{ price_id: priceId }})
+            Paddle.Checkout.open({{
+                priceId: priceId,
+                method: 'inline',
+                frameTarget: 'paddle-checkout-modal',
+                frameInitialHeight: 450,
+                customer: {{ email: '' }},
+                onComplete: function(data) {{
+                    showToast('Payment successful!', 'success');
+                    btns.forEach(b => {{ b.disabled = false; }});
+                }}
             }});
-            
-            const result = await response.json();
-            
-            if (result.success && result.url) {{
-                window.open(result.url, '_blank');
-            }} else {{
-                showToast(result.detail || 'Failed to create checkout', 'error');
-            }}
         }} catch (error) {{
-            showToast('Could not connect to server. Please try again.', 'error');
+            showToast('Failed to open checkout. Please try again.', 'error');
             console.error('Checkout error:', error);
-        }} finally {{
-            btns.forEach(b => {{ b.disabled = false; b.innerText = 'Start Free Trial'; }});
+            btns.forEach(b => {{ b.disabled = false; }});
         }}
     }}
 
@@ -409,7 +414,7 @@ html_template = """<!DOCTYPE html>
         script.onload = function() {{
             try {{
                 Paddle.Initialize({{
-                    token: 'pdl_sdbx_client_token_test_4m2k8812v90y168y3q55z8b7z8h8k4v7'
+                    token: 'pdl_sdbx_client_token_test_fd4f314b5001e6d0ba660501ddb'
                 }});
             }} catch (e) {{
                 console.error('Paddle init failed:', e);
