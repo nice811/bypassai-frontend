@@ -378,32 +378,29 @@ html_template = """<!DOCTYPE html>
         }}
     }});
 
-    function startCheckout(priceId) {{
-        if (typeof Paddle === 'undefined') {{
-            showToast('Loading payment system...', 'info');
-            setTimeout(() => startCheckout(priceId), 500);
-            return;
-        }}
-        
+    async function startCheckout(priceId) {{
         const btns = document.querySelectorAll('.paddle-button');
-        btns.forEach(b => {{ b.disabled = true; }});
+        btns.forEach(b => {{ b.disabled = true; b.textContent = 'Loading...'; }});
         
         try {{
-            Paddle.Checkout.open({{
-                priceId: priceId,
-                method: 'inline',
-                frameTarget: 'paddle-checkout-modal',
-                frameInitialHeight: 450,
-                customer: {{ email: '' }},
-                onComplete: function(data) {{
-                    showToast('Payment successful!', 'success');
-                    btns.forEach(b => {{ b.disabled = false; }});
-                }}
+            const response = await fetch('{api_url}/api/checkout', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{ price_id: priceId }})
             }});
+            
+            const result = await response.json();
+            
+            if (result.success && result.url) {{
+                window.location.href = result.url;
+            }} else {{
+                showToast(result.detail || 'Failed to create checkout', 'error');
+                btns.forEach(b => {{ b.disabled = false; b.textContent = 'Start Free Trial'; }});
+            }}
         }} catch (error) {{
-            showToast('Failed to open checkout. Please try again.', 'error');
+            showToast('Could not connect to server. Please try again.', 'error');
             console.error('Checkout error:', error);
-            btns.forEach(b => {{ b.disabled = false; }});
+            btns.forEach(b => {{ b.disabled = false; b.textContent = 'Start Free Trial'; }});
         }}
     }}
 
