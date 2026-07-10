@@ -204,8 +204,7 @@
 <script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
     <script>
     const API_URL = 'https://bypassai-api-production.up.railway.app/api/humanize';
-    const PLANS_URL = 'https://bypassai-api-production.up.railway.app/api/plans';
-    let paddleClientToken = '';
+    const PADDLE_CLIENT_TOKEN = 'pdl_sdbx_client_token_test_fd4f314b5001e6d0ba660501ddb';
 
     function showToast(msg, type) {
         const toast = document.getElementById('toast');
@@ -338,23 +337,9 @@
         }
     });
 
-    async function loadPlans() {
-        try {
-            const response = await fetch(PLANS_URL);
-            const data = await response.json();
-            if (data.success && data.paddle_client_token) {
-                paddleClientToken = data.paddle_client_token;
-                initPaddle();
-                document.getElementById('pricing-section').style.display = 'block';
-            }
-        } catch (error) {
-            console.log('Failed to load plans:', error);
-        }
-    }
-
     function initPaddle() {
         Paddle.Setup({
-            token: paddleClientToken,
+            token: PADDLE_CLIENT_TOKEN,
             environment: 'sandbox'
         });
 
@@ -376,7 +361,10 @@
         });
     }
 
-    loadPlans();
+    document.addEventListener('DOMContentLoaded', function() {
+        initPaddle();
+        document.getElementById('pricing-section').style.display = 'block';
+    });
 </script>
 </body>
 </html>
