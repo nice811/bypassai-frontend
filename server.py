@@ -1,7 +1,7 @@
 import os
 import logging
 import re
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_validator
@@ -27,6 +27,41 @@ SILICONFLOW_API_KEY = os.getenv("SILICONFLOW_API_KEY", "")
 SILICONFLOW_URL = "https://api.siliconflow.cn/v1/chat/completions"
 MODEL_NAME = os.getenv("MODEL_NAME", "deepseek-ai/DeepSeek-V3")
 MAX_INPUT_CHARS = int(os.getenv("MAX_INPUT_CHARS", "10000"))
+
+PADDLE_API_KEY = os.getenv("PADDLE_API_KEY", "")
+PADDLE_CLIENT_TOKEN = os.getenv("PADDLE_CLIENT_TOKEN", "")
+PADDLE_WEBHOOK_SECRET = os.getenv("PADDLE_WEBHOOK_SECRET", "")
+PADDLE_API_BASE = "https://api.sandbox.paddle.com"
+
+PRICING_PLAN = {
+    "starter": {
+        "id": "pri_01kx4wv5dhnyt6agz60yaq745b",
+        "name": "Starter",
+        "price": 10,
+        "currency": "USD",
+        "description": "基础版 - 适合个人用户",
+        "features": ["每月 50 次转换", "标准处理速度", "基础支持"],
+        "monthly_limit": 50
+    },
+    "pro": {
+        "id": "pri_01kx4wzvrsqx17grb62j41ab1e",
+        "name": "Pro",
+        "price": 40,
+        "currency": "USD",
+        "description": "专业版 - 适合学生和专业人士",
+        "features": ["每月 500 次转换", "快速处理速度", "优先支持", "历史记录"],
+        "monthly_limit": 500
+    },
+    "advanced": {
+        "id": "pri_01kx4x4me2tgcbprgrm604g0kk",
+        "name": "Advanced",
+        "price": 120,
+        "currency": "USD",
+        "description": "高级版 - 适合团队和企业",
+        "features": ["无限转换", "极速处理", "专属支持", "API 访问", "团队协作"],
+        "monthly_limit": None
+    }
+}
 
 DEFAULT_SYSTEM_PROMPT = """You are an expert human writer specializing in making AI-generated text sound natural, organic, and indistinguishable from human-written content.
 
@@ -164,6 +199,30 @@ async def humanize_text(request: TextRequest):
         return {"success": True, "data": full_text.strip()}
 
 
+@app.get("/api/plans")
+async def get_plans():
+    return {
+        "success": True,
+        "data": PRICING_PLAN,
+        "paddle_client_token": PADDLE_CLIENT_TOKEN
+    }
+
+
+@app.post("/api/webhook/paddle")
+async def paddle_webhook(request: Request):
+    try:
+        raw_body = await request.body()
+        signature = request.headers.get("paddle-signature", "")
+        
+        logger.info(f"Paddle webhook received: {signature[:20]}...")
+        logger.info(f"Webhook body: {raw_body[:500]}...")
+        
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Webhook error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/")
 async def health_check():
     return {
@@ -172,7 +231,8 @@ async def health_check():
         "model": MODEL_NAME,
         "config": {
             "max_input_chars": MAX_INPUT_CHARS,
-            "api_key_configured": bool(SILICONFLOW_API_KEY)
+            "api_key_configured": bool(SILICONFLOW_API_KEY),
+            "payment_configured": bool(PADDLE_CLIENT_TOKEN)
         }
     }
 
