@@ -1,6 +1,9 @@
 import os
 import logging
 import re
+import uuid
+import hashlib
+from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -18,9 +21,9 @@ FRONTEND_ORIGINS = os.getenv("FRONTEND_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=FRONTEND_ORIGINS,
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["POST", "OPTIONS", "GET"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 SILICONFLOW_API_KEY = os.getenv("SILICONFLOW_API_KEY", "")
@@ -62,6 +65,68 @@ PRICING_PLAN = {
         "monthly_limit": None
     }
 }
+
+USER_STORAGE = {}
+SESSION_STORAGE = {}
+
+def generate_session_token(user_id):
+    token = str(uuid.uuid4())
+    SESSION_STORAGE[token] = {
+        "user_id": user_id,
+        "created_at": datetime.now(),
+        "expires_at": datetime.now() + timedelta(days=7)
+    }
+    return token
+
+def get_user_by_session(token):
+    if token not in SESSION_STORAGE:
+        return None
+    session = SESSION_STORAGE[token]
+    if datetime.now() > session["expires_at"]:
+        del SESSION_STORAGE[token]
+        return None
+    return USER_STORAGE.get(session["user_id"])
+
+def create_or_update_user(email, plan_key=None):
+    user_id = hashlib.md5(email.encode()).hexdigest()
+    if user_id not in USER_STORAGE:
+        USER_STORAGE[user_id] = {
+            "id": user_id,
+            "email": email,
+            "plan": plan_key or "free",
+            "monthly_limit": PRICING_PLAN.get(plan_key, {}).get("monthly_limit", 5),
+            "used_this_month": 0,
+            "last_reset": datetime.now(),
+            "created_at": datetime.now(),
+            "subscription_id": None,
+            "trial_used": False
+        }
+    elif plan_key and plan_key != USER_STORAGE[user_id]["plan"]:
+        USER_STORAGE[user_id]["plan"] = plan_key
+        USER_STORAGE[user_id]["monthly_limit"] = PRICING_PLAN.get(plan_key, {}).get("monthly_limit", 5)
+        USER_STORAGE[user_id]["used_this_month"] = 0
+    return USER_STORAGE[user_id]
+
+def reset_monthly_quota(user):
+    now = datetime.now()
+    if now.month != user["last_reset"].month or now.year != user["last_reset"].year:
+        user["used_this_month"] = 0
+        user["last_reset"] = now
+    return user
+
+def check_quota(user):
+    user = reset_monthly_quota(user)
+    if user["monthly_limit"] is None:
+        return True, "unlimited"
+    if user["used_this_month"] < user["monthly_limit"]:
+        return True, f"{user['used_this_month']}/{user['monthly_limit']}"
+    return False, f"{user['used_this_month']}/{user['monthly_limit']}"
+
+def consume_quota(user):
+    user = reset_monthly_quota(user)
+    if user["monthly_limit"] is not None:
+        user["used_this_month"] += 1
+    return user
 
 DEFAULT_SYSTEM_PROMPT = """You are an expert human writer specializing in making AI-generated text sound natural, organic, and indistinguishable from human-written content.
 
@@ -175,18 +240,36 @@ async def llm_stream_generator(text: str, use_short_prompt: bool):
 
 
 @app.post("/api/humanize")
-async def humanize_text(request: TextRequest):
+async def humanize_text(request: TextRequest, token: str = None):
     if not SILICONFLOW_API_KEY:
         raise HTTPException(status_code=500, detail="未配置后端 SILICONFLOW_API_KEY 环境变量")
 
+    user = None
+    if token:
+        user = get_user_by_session(token)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid or expired session token")
+
+    if user:
+        allowed, quota_info = check_quota(user)
+        if not allowed:
+            raise HTTPException(status_code=429, detail=f"配额已用完！当前使用: {quota_info}")
+    else:
+        user = create_or_update_user("anonymous@example.com")
+        allowed, quota_info = check_quota(user)
+        if not allowed:
+            raise HTTPException(status_code=429, detail=f"免费配额已用完！请升级订阅。当前使用: {quota_info}")
+
     short = is_short_text(request.text)
-    logger.info(f"Request: length={count_length(request.text)}, short={short}, stream={request.stream}")
+    logger.info(f"Request: user={user['email']}, plan={user['plan']}, quota={quota_info}, length={count_length(request.text)}, short={short}, stream={request.stream}")
 
     if request.stream:
-        return StreamingResponse(
-            llm_stream_generator(request.text, use_short_prompt=short),
-            media_type="text/event-stream"
-        )
+        async def stream_with_quota():
+            async for chunk_msg in llm_stream_generator(request.text, use_short_prompt=short):
+                yield chunk_msg
+            consume_quota(user)
+            logger.info(f"Quota consumed: {user['used_this_month']}/{user['monthly_limit']}")
+        return StreamingResponse(stream_with_quota(), media_type="text/event-stream")
     else:
         full_text = ""
         async for chunk_msg in llm_stream_generator(request.text, use_short_prompt=short):
@@ -196,8 +279,41 @@ async def humanize_text(request: TextRequest):
                     full_text += line_data.get("chunk", "")
                 except:
                     pass
-        return {"success": True, "data": full_text.strip()}
+        consume_quota(user)
+        logger.info(f"Quota consumed: {user['used_this_month']}/{user['monthly_limit']}")
+        return {"success": True, "data": full_text.strip(), "quota": quota_info}
 
+
+class LoginRequest(BaseModel):
+    email: str
+
+@app.post("/api/login")
+async def login(request: LoginRequest):
+    user = create_or_update_user(request.email)
+    token = generate_session_token(user["id"])
+    return {
+        "success": True,
+        "token": token,
+        "user": {
+            "email": user["email"],
+            "plan": user["plan"],
+            "quota": f"{user['used_this_month']}/{user['monthly_limit']}" if user["monthly_limit"] else "unlimited"
+        }
+    }
+
+@app.get("/api/user")
+async def get_user(token: str):
+    user = get_user_by_session(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    return {
+        "success": True,
+        "user": {
+            "email": user["email"],
+            "plan": user["plan"],
+            "quota": f"{user['used_this_month']}/{user['monthly_limit']}" if user["monthly_limit"] else "unlimited"
+        }
+    }
 
 @app.get("/api/plans")
 async def get_plans():
@@ -215,7 +331,43 @@ async def paddle_webhook(request: Request):
         signature = request.headers.get("paddle-signature", "")
         
         logger.info(f"Paddle webhook received: {signature[:20]}...")
-        logger.info(f"Webhook body: {raw_body[:500]}...")
+        
+        try:
+            webhook_data = json.loads(raw_body.decode("utf-8"))
+            event_type = webhook_data.get("event_type", "")
+            
+            logger.info(f"Webhook event type: {event_type}")
+            
+            if event_type in ["subscription.created", "subscription.updated"]:
+                data = webhook_data.get("data", {})
+                customer_email = data.get("customer", {}).get("email", "")
+                price_id = data.get("price", {}).get("id", "")
+                
+                logger.info(f"Payment success - email: {customer_email}, price_id: {price_id}")
+                
+                plan_key = None
+                for key, plan in PRICING_PLAN.items():
+                    if plan["id"] == price_id:
+                        plan_key = key
+                        break
+                
+                if plan_key and customer_email:
+                    user = create_or_update_user(customer_email, plan_key)
+                    user["subscription_id"] = data.get("id", "")
+                    user["trial_used"] = True
+                    logger.info(f"User upgraded: {customer_email} -> {plan_key} ({user['monthly_limit']} credits)")
+                    
+                    return {"success": True, "message": f"User {customer_email} upgraded to {plan_key}"}
+                else:
+                    logger.warning(f"Could not find plan for price_id: {price_id}")
+                    return {"success": True, "message": "Plan not found"}
+            else:
+                logger.info(f"Ignoring event type: {event_type}")
+                return {"success": True, "message": f"Ignored: {event_type}"}
+        
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error: {str(e)}")
+            logger.info(f"Raw body: {raw_body[:500]}")
         
         return {"success": True}
     except Exception as e:
